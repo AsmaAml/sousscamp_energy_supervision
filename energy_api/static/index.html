@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <link rel="icon" type="image/png" href="/static/icone_sousscamp.png" sizes="32x32"/>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SoussCamp — Supervision Énergétique</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Exo+2:wght@200;300;400;600;800&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#07101a;--bg2:#0c1822;--bg3:#111f2e;--bg4:#162438;
+  --bd:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.13);
+  --c1:#00d4ff;--c2:#00ff88;--c3:#ff9500;--c4:#ff2d55;--c5:#a78bfa;
+  --tx:rgba(255,255,255,.9);--tx2:rgba(255,255,255,.45);--tx3:rgba(255,255,255,.18);
+  --mono:'JetBrains Mono',monospace;--ui:'Rajdhani',sans-serif;--display:'Exo 2',sans-serif;
+}
+
+/* ══ BASE LAYOUT ══ */
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-family:var(--ui)}
+
+/* LOGIN overlay */
+#login{
+  position:fixed;inset:0;
+  background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  z-index:200
+}
+
+/* APP — covers entire viewport */
+#app{
+  position:fixed;inset:0;
+  display:none;          /* JS sets display:flex */
+  flex-direction:column;
+}
+
+/* TOPBAR — fixed height at top */
+.topbar{
+  height:52px;flex-shrink:0;
+  background:var(--bg2);border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;justify-content:space-between;padding:0 18px;
+}
+
+/* CONTENT AREA — everything below topbar */
+.body{
+  flex:1;               /* fills remaining height */
+  display:flex;
+  overflow:hidden;      /* children handle their own scroll */
+  min-height:0;         /* critical for flex shrink */
+}
+
+/* SIDEBAR */
+.sidebar{
+  width:188px;flex-shrink:0;
+  background:var(--bg2);border-right:1px solid var(--bd);
+  padding:12px 10px;
+  display:flex;flex-direction:column;gap:2px;
+  overflow-y:auto;
+}
+
+/* PAGES — scrollable content */
+.page{
+  flex:1;
+  overflow-y:auto;
+  padding:20px 20px 80px;
+  display:none;
+  flex-direction:column;
+  gap:14px;
+  min-height:0;
+}
+.page.active{display:flex}
+
+/* ══ LOGIN ══ */
+.lb{width:390px;background:var(--bg2);border:1px solid var(--bd2);border-radius:14px;padding:38px 34px}
+.lb-top{display:flex;align-items:center;gap:13px;margin-bottom:30px}
+.lf-label{font-size:10px;letter-spacing:2px;color:var(--tx2);margin-bottom:7px;display:block}
+.lf-input{width:100%;background:var(--bg3);border:1px solid var(--bd2);border-radius:7px;padding:11px 13px;color:var(--tx);font-size:13px;font-family:var(--mono);outline:none;margin-bottom:15px;transition:.2s}
+.lf-input:focus{border-color:var(--c1);box-shadow:0 0 0 3px rgba(0,212,255,.1)}
+.lb-btn{width:100%;padding:13px;background:var(--c1);border:none;border-radius:7px;font-size:13px;font-weight:700;letter-spacing:2px;color:#000;cursor:pointer;font-family:var(--display);margin-top:4px;transition:.15s}
+.lb-btn:hover{opacity:.9;transform:translateY(-1px)}
+.lb-err{background:rgba(255,45,85,.1);border:1px solid rgba(255,45,85,.3);border-radius:7px;padding:9px 13px;font-family:var(--mono);font-size:12px;color:var(--c4);margin-bottom:14px}
+.lb-hint{margin-top:20px;padding-top:17px;border-top:1px solid var(--bd);font-family:var(--mono);font-size:10px;color:var(--tx3);line-height:2}
+.lb-hint span{color:var(--tx2)}
+
+/* ══ NAV ══ */
+.tb-l{display:flex;align-items:center;gap:14px}
+.tb-sep{width:1px;height:22px;background:var(--bd2)}
+.nav{display:flex;gap:2px}
+.nb{padding:6px 13px;border-radius:5px;border:none;background:transparent;cursor:pointer;font-size:12px;font-weight:600;letter-spacing:1px;color:var(--tx2);font-family:var(--ui);transition:.15s}
+.nb:hover{background:var(--bg3);color:var(--tx)}
+.nb.act{background:rgba(0,212,255,.1);color:var(--c1);border:1px solid rgba(0,212,255,.18)}
+.tb-r{display:flex;align-items:center;gap:12px}
+.conn-badge{display:flex;align-items:center;gap:6px;padding:4px 11px;border-radius:12px;font-family:var(--mono);font-size:10px}
+.conn-badge.ok{background:rgba(0,255,136,.07);border:1px solid rgba(0,255,136,.2);color:var(--c2)}
+.conn-badge.err{background:rgba(255,45,85,.07);border:1px solid rgba(255,45,85,.2);color:var(--c4)}
+.conn-badge.load{background:rgba(255,149,0,.07);border:1px solid rgba(255,149,0,.2);color:var(--c3)}
+.cdot{width:6px;height:6px;border-radius:50%}
+.ok .cdot{background:var(--c2);animation:blink 2s infinite}
+.err .cdot{background:var(--c4)}
+.load .cdot{background:var(--c3);animation:blink .8s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+#alarm-badge{display:none;padding:4px 11px;border-radius:12px;background:rgba(255,45,85,.1);border:1px solid rgba(255,45,85,.3);font-family:var(--mono);font-size:10px;color:var(--c4);animation:blink .8s infinite}
+#tb-clock{font-family:var(--mono);font-size:12px;color:var(--c1);letter-spacing:2px}
+.tb-user{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tx2)}
+.tb-av{width:26px;height:26px;border-radius:5px;background:var(--bg4);border:1px solid var(--bd2);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--c1);font-family:var(--mono)}
+.tb-role{font-size:10px;background:var(--bg4);border:1px solid var(--bd);padding:2px 7px;border-radius:4px;color:var(--tx2)}
+.lout-btn{padding:4px 10px;border:1px solid var(--bd2);border-radius:5px;background:transparent;cursor:pointer;font-size:11px;color:var(--tx2);transition:.15s}
+.lout-btn:hover{color:var(--c4);border-color:rgba(255,45,85,.4)}
+
+/* PROG BAR */
+#prog{height:2px;background:var(--c1);position:fixed;top:0;left:0;z-index:999;transition:width .12s linear;box-shadow:0 0 8px var(--c1)}
+
+/* ══ SIDEBAR ITEMS ══ */
+.slabel{font-size:10px;letter-spacing:3px;color:var(--tx3);padding:10px 10px 4px}
+.sb{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:6px;border:none;background:transparent;cursor:pointer;width:100%;text-align:left;font-size:13px;font-weight:600;color:var(--tx2);font-family:var(--ui);transition:.15s}
+.sb:hover{background:var(--bg3);color:var(--tx)}
+.sb.act{background:rgba(0,212,255,.09);color:var(--c1);border:1px solid rgba(0,212,255,.15)}
+.sb-ic{font-size:15px;width:18px;text-align:center}
+.sb-badge{margin-left:auto;background:var(--c4);color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;font-family:var(--mono);animation:blink .8s infinite}
+.sb-info{padding:10px;font-family:var(--mono);font-size:10px;color:var(--tx3);line-height:2}
+
+/* ══ PAGE CONTENT ══ */
+.ptitle{font-size:21px;font-weight:800;letter-spacing:2px;font-family:var(--display)}
+.psub{font-size:11px;color:var(--tx2);letter-spacing:1px;margin-top:2px}
+
+/* CARDS */
+.card{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:15px 17px;position:relative;overflow:hidden}
+.card::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,.25),transparent)}
+.card.ca-green::after{background:linear-gradient(90deg,transparent,rgba(0,255,136,.25),transparent)}
+.card.ca-orange::after{background:linear-gradient(90deg,transparent,rgba(255,149,0,.25),transparent)}
+.card.ca-red::after{background:linear-gradient(90deg,transparent,rgba(255,45,85,.4),transparent)}
+.card.alarm{border-color:rgba(255,45,85,.35);animation:pa 2s infinite}
+@keyframes pa{0%,100%{box-shadow:none}50%{box-shadow:0 0 20px rgba(255,45,85,.15)}}
+
+/* GRIDS */
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+
+/* METRIC CARD */
+.mc-l{font-size:10px;letter-spacing:2px;color:var(--tx3);margin-bottom:5px}
+.mc-v{font-family:var(--mono);font-size:26px;display:flex;align-items:baseline;gap:4px;line-height:1}
+.mc-u{font-size:11px;color:var(--tx2);font-family:var(--ui)}
+.mc-s{font-size:10px;color:var(--tx3);margin-top:5px;font-family:var(--mono)}
+.gbar{margin-top:10px}
+.gtr{height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.gf{height:100%;border-radius:2px;transition:width .9s cubic-bezier(.4,0,.2,1)}
+
+/* KPI */
+.kpi{background:var(--bg3);border:1px solid var(--bd);border-radius:8px;padding:13px 14px;text-align:center}
+.kpi-v{font-family:var(--mono);font-size:20px}
+.kpi-l{font-size:9px;letter-spacing:2px;color:var(--tx3);margin-top:3px}
+
+/* SECTION HEAD */
+.sh{display:flex;align-items:center;gap:9px}
+.sl{width:3px;height:15px;border-radius:2px}
+.sh-t{font-size:11px;letter-spacing:3px;color:var(--tx2);font-weight:700}
+
+/* ALARMS */
+.ag{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.ai{display:flex;align-items:center;gap:9px;padding:10px 12px;border-radius:7px;border:1px solid;transition:.25s}
+.ai.ok{border-color:rgba(0,255,136,.15);background:rgba(0,255,136,.03)}
+.ai.on{border-color:rgba(255,45,85,.35);background:rgba(255,45,85,.07);animation:blink .8s infinite}
+.ai-d{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ai.ok .ai-d{background:var(--c2);box-shadow:0 0 5px var(--c2)}
+.ai.on .ai-d{background:var(--c4);box-shadow:0 0 8px var(--c4)}
+.ai-n{font-size:11px;font-weight:700;letter-spacing:1px}
+.ai.ok .ai-n{color:var(--tx2)}
+.ai.on .ai-n{color:var(--c4)}
+.ai-s{margin-left:auto;font-family:var(--mono);font-size:9px}
+.ai.ok .ai-s{color:var(--c2)}
+.ai.on .ai-s{color:var(--c4)}
+
+/* CHART */
+.cht-t{font-size:10px;letter-spacing:2px;color:var(--tx2);margin-bottom:10px;font-weight:600}
+
+/* HISTORY */
+.hist-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.h-select{background:var(--bg3);border:1px solid var(--bd2);border-radius:6px;padding:7px 11px;color:var(--tx);font-size:12px;font-family:var(--mono);outline:none}
+.h-btn{padding:7px 14px;border-radius:6px;border:1px solid var(--bd2);background:transparent;cursor:pointer;font-family:var(--ui);font-size:12px;font-weight:600;letter-spacing:1px;color:var(--tx2);transition:.15s}
+.h-btn:hover,.h-btn.act{background:rgba(0,212,255,.1);border-color:rgba(0,212,255,.25);color:var(--c1)}
+.h-refresh{padding:7px 13px;border-radius:6px;border:1px solid rgba(0,255,136,.25);background:rgba(0,255,136,.07);cursor:pointer;font-family:var(--mono);font-size:11px;color:var(--c2)}
+
+/* TABLE */
+table{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--mono)}
+thead tr{border-bottom:1px solid var(--bd2)}
+th{padding:9px 13px;text-align:left;font-size:10px;letter-spacing:2px;color:var(--tx3);font-weight:400}
+td{padding:8px 13px;color:var(--tx);border-bottom:1px solid rgba(255,255,255,.04)}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+
+/* GAUGE */
+.gc{display:flex;flex-direction:column;align-items:center}
+.gc-l{font-size:10px;letter-spacing:2px;color:var(--tx3);margin-top:3px}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}
+
+/* SHIMMER */
+.sk{background:linear-gradient(90deg,var(--bg2) 25%,var(--bg3) 50%,var(--bg2) 75%);background-size:300%;animation:shimmer 1.5s infinite;border-radius:4px;height:26px}
+@keyframes shimmer{0%{background-position:200%}100%{background-position:-200%}}
+
+@media(max-width:1100px){.grid4{grid-template-columns:repeat(2,1fr)}.kpi-row{grid-template-columns:repeat(3,1fr)}.ag{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:780px){.sidebar{display:none}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
+
+/* ── JOURNAL ALARMES ── */
+#alarm-log td{padding:9px 13px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;font-family:var(--mono)}
+#alarm-log tr:hover td{background:rgba(255,255,255,.03)}
+#alarm-log tr:first-child td{border-top:none}
+
+/* ── HIST CHART CARD ── */
+#page-history .card:has(#ch-hist){overflow:visible !important}
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ── -->
+<div id="login">
+  <div class="lb">
+    <div style="text-align:center;margin-bottom:24px">
+      <img src="/static/logo_sousscamp.png" alt="SoussCamp" style="height:60px;object-fit:contain"/>
+    </div>
+    <div style="text-align:center;margin-bottom:20px">
+      <div class="lb-hint" style="border:none;margin:0;padding:0;font-size:11px;letter-spacing:2px;color:var(--tx2)">SUPERVISION ÉNERGÉTIQUE</div>
+    </div>
+    <div id="lerr" style="display:none" class="lb-err"></div>
+    <label class="lf-label">IDENTIFIANT</label>
+    <input class="lf-input" id="lu" placeholder="SoussCamp" autocomplete="username"/>
+    <label class="lf-label">MOT DE PASSE</label>
+    <input class="lf-input" id="lp" type="password" placeholder="••••••••" autocomplete="current-password"/>
+    <button class="lb-btn" id="lbtn">ACCÉDER AU DASHBOARD</button>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app">
+  <div id="prog" style="width:0%"></div>
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-l">
+      <img src="/static/logo_sousscamp.png" alt="SoussCamp" style="height:34px;object-fit:contain"/>
+      <div class="tb-sep"></div>
+      <nav class="nav" id="nav">
+        <button class="nb act" data-page="overview">◈ Vue générale</button>
+        <button class="nb" data-page="energy">⚡ Énergie</button>
+        <button class="nb" data-page="process">⚙ Process</button>
+        <button class="nb" data-page="env">🌡 Environnement</button>
+        <button class="nb" data-page="history">📊 Historique</button>
+        <button class="nb" data-page="alarmes">🔔 Alarmes</button>
+      </nav>
+    </div>
+    <div class="tb-r">
+      <div class="conn-badge load" id="conn"><div class="cdot"></div><span id="conn-t">CONNEXION</span></div>
+      <div id="alarm-badge">⚠ ALARME ACTIVE</div>
+      <div id="tb-clock">--:--:--</div>
+      <div class="tb-user">
+        <div class="tb-av" id="tb-av">?</div>
+        <span id="tb-uname"></span>
+        <span class="tb-role" id="tb-role"></span>
+      </div>
+      <button class="lout-btn" id="lout-btn">Déconnexion</button>
+    </div>
+  </div>
+
+  <!-- BODY = sidebar + pages -->
+  <div class="body">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="slabel">NAVIGATION</div>
+      <div id="sb-nav">
+        <button class="sb act" data-page="overview"><span class="sb-ic">◈</span>Vue générale<span class="sb-badge" id="alarm-sb" style="display:none">!</span></button>
+        <button class="sb" data-page="energy"><span class="sb-ic">⚡</span>Énergie</button>
+        <button class="sb" data-page="process"><span class="sb-ic">⚙</span>Process</button>
+        <button class="sb" data-page="env"><span class="sb-ic">🌡</span>Environnement</button>
+        <button class="sb" data-page="history"><span class="sb-ic">📊</span>Historique</button>
+        <button class="sb" data-page="alarmes"><span class="sb-ic">🔔</span>Alarmes</button>
+      </div>
+      <div class="slabel" style="margin-top:16px">DISPOSITIF</div>
+      <div class="sb-info">
+        UNIFIED_01<br>ESP32-S3<br>RS485 × 2 Bus<br>
+        <span style="color:var(--c1)" id="sb-pts">0 pts</span><br>
+        <span style="color:var(--tx3)" id="sb-last">Jamais</span>
+      </div>
+      <div class="slabel" style="margin-top:16px">API</div>
+      <div class="sb-info" style="word-break:break-all">sousscamp.duckdns.org<br><span style="color:var(--tx3)">/latest · /history</span></div>
+    </div>
+
+    <!-- PAGE : VUE GÉNÉRALE -->
+    <div class="page active" id="page-overview">
+      <div><div class="ptitle">Vue d'Ensemble</div><div class="psub">TABLEAU DE BORD PRINCIPAL — DONNÉES TEMPS RÉEL (REFRESH 5s)</div></div>
+      <div class="kpi-row">
+        <div class="kpi"><div class="kpi-v" id="kpi-pwr" style="color:var(--c3)">--</div><div class="kpi-l">PUISSANCE kW</div></div>
+        <div class="kpi"><div class="kpi-v" id="kpi-v" style="color:var(--c1)">--</div><div class="kpi-l">TENSION V</div></div>
+        <div class="kpi"><div class="kpi-v" id="kpi-t" style="color:var(--c2)">--</div><div class="kpi-l">TEMP °C</div></div>
+        <div class="kpi"><div class="kpi-v" id="kpi-p" style="color:var(--c1)">--</div><div class="kpi-l">PRESSION bar</div></div>
+        <div class="kpi" id="kpi-alm-card"><div class="kpi-v" id="kpi-alv" style="color:var(--c2)">✓ OK</div><div class="kpi-l">ALARMES</div></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><div class="cht-t">⚡ PUISSANCE ACTIVE (kW) — seuil alarme 40 kW</div><div style="position:relative;height:155px"><canvas id="ch-pwr"></canvas></div></div>
+        <div class="card"><div class="cht-t">⚡ TENSION RÉSEAU (V)</div><div style="position:relative;height:155px"><canvas id="ch-v"></canvas></div></div>
+      </div>
+      <div class="grid2">
+        <div class="card ca-green"><div class="cht-t">🌡 TEMPÉRATURE (°C)</div><div style="position:relative;height:155px"><canvas id="ch-t"></canvas></div></div>
+        <div class="card ca-orange"><div class="cht-t">💧 DÉBIT EAU (L/min)</div><div style="position:relative;height:155px"><canvas id="ch-fl"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- PAGE : ÉNERGIE -->
+    <div class="page" id="page-energy">
+      <div><div class="ptitle">Énergie Électrique</div><div class="psub">COMPTEUR PM5100 — SCHNEIDER ELECTRIC — MODBUS RTU FC03 — BUS RS485 #1</div></div>
+      <div class="sh"><div class="sl" style="background:var(--c1);box-shadow:0 0 7px var(--c1)"></div><div class="sh-t">MESURES INSTANTANÉES</div></div>
+      <div class="grid4" id="energy-metrics"></div>
+      <div class="sh"><div class="sl" style="background:var(--c1)"></div><div class="sh-t">HISTORIQUE ÉLECTRIQUE — DERNIÈRES MESURES</div></div>
+      <div class="grid2">
+        <div class="card"><div class="cht-t">PUISSANCE ACTIVE (kW)</div><div style="position:relative;height:195px"><canvas id="ch-pwr2"></canvas></div></div>
+        <div class="card"><div class="cht-t">TENSION (V)</div><div style="position:relative;height:195px"><canvas id="ch-v2"></canvas></div></div>
+        <div class="card"><div class="cht-t">COURANT (A)</div><div style="position:relative;height:195px"><canvas id="ch-curr"></canvas></div></div>
+        <div class="card"><div class="cht-t">FACTEUR DE PUISSANCE</div><div style="position:relative;height:195px"><canvas id="ch-fp"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- PAGE : PROCESS -->
+    <div class="page" id="page-process">
+      <div><div class="ptitle">Process Industriel</div><div class="psub">E+H PMP51 CERABAR (PRESSION) · PROWIRL 200 DN200 (DÉBIT AIR) — MODBUS FC04 — BUS RS485 #2</div></div>
+      <div class="sh"><div class="sl" style="background:var(--c2);box-shadow:0 0 7px var(--c2)"></div><div class="sh-t">INSTRUMENTS E+H</div></div>
+      <div class="grid2">
+        <div class="card ca-green" id="pr-pression"></div>
+        <div class="card" id="pr-debit"></div>
+      </div>
+      <div class="sh"><div class="sl" style="background:var(--c2)"></div><div class="sh-t">HISTORIQUE PROCESS</div></div>
+      <div class="grid2">
+        <div class="card ca-green"><div class="cht-t">PRESSION EAU (bar)</div><div style="position:relative;height:220px"><canvas id="ch-pr"></canvas></div></div>
+        <div class="card"><div class="cht-t">DÉBIT AIR (m³/h)</div><div style="position:relative;height:220px"><canvas id="ch-da"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- PAGE : ENVIRONNEMENT -->
+    <div class="page" id="page-env">
+      <div><div class="ptitle">Environnement</div><div class="psub">DS18B20 (TEMPÉRATURE) · ZENNER (DÉBIT GAZ) · ZENNER (INDEX GAZ) · YF-S201 (DÉBIT EAU)</div></div>
+      <div class="sh"><div class="sl" style="background:var(--c3);box-shadow:0 0 7px var(--c3)"></div><div class="sh-t">CAPTEURS ENVIRONNEMENTAUX</div></div>
+      <div class="grid4" id="env-metrics"></div>
+      <div class="sh"><div class="sl" style="background:var(--c3)"></div><div class="sh-t">HISTORIQUE ENVIRONNEMENT</div></div>
+      <div class="grid3">
+        <div class="card ca-green"><div class="cht-t">TEMPÉRATURE DS18B20 (°C)</div><div style="position:relative;height:195px"><canvas id="ch-te"></canvas></div></div>
+        <div class="card"><div class="cht-t">DÉBIT GAZ ZENNER (m³/h)</div><div style="position:relative;height:195px"><canvas id="ch-ga"></canvas></div></div>
+        <div class="card ca-orange"><div class="cht-t">DÉBIT EAU YF-S201 (L/min)</div><div style="position:relative;height:195px"><canvas id="ch-fw"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- PAGE : HISTORIQUE -->
+    <div class="page" id="page-history">
+      <div><div class="ptitle">Historique des Mesures</div><div class="psub">CONSULTATION DONNÉES INFLUXDB — TOUS CAPTEURS</div></div>
+      <div class="hist-controls">
+        <select class="h-select" id="hist-field">
+          <option value="power_kw">⚡ Puissance active (kW)</option>
+          <option value="voltage_v">⚡ Tension (V)</option>
+          <option value="current_a">⚡ Courant (A)</option>
+          <option value="energy_kwh">⚡ Énergie cumulée (Wh)</option>
+          <option value="power_factor">⚡ Facteur de puissance</option>
+          <option value="frequency_hz">⚡ Fréquence réseau (Hz)</option>
+          <option value="cost_dh">⚡ Coût cumulé (DH)</option>
+          <option value="pression_bar">⚙ Pression eau (bar)</option>
+          <option value="debit_m3h">⚙ Débit air (m³/h)</option>
+          <option value="temp_c">🌡 Température (°C)</option>
+          <option value="gas_flow_m3h">🔥 Débit gaz ZENNER (m³/h)</option>
+            <option value="gas_index_m3">📦 Index gaz ZENNER (m³)</option>
+          <option value="flow_lpm">💧 Débit eau (L/min)</option>
+          <option value="volume_l">💧 Volume cumulé (L)</option>
+        </select>
+        <div style="width:1px;height:30px;background:var(--bd2);align-self:center"></div>
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:10px;letter-spacing:2px;color:var(--tx3);margin-right:4px">RAPIDE</span>
+          <button class="h-btn act" data-mode="quick" data-m="15">15 min</button>
+          <button class="h-btn" data-mode="quick" data-m="30">30 min</button>
+          <button class="h-btn" data-mode="quick" data-m="60">1 h</button>
+          <button class="h-btn" data-mode="quick" data-m="180">3 h</button>
+          <button class="h-btn" data-mode="quick" data-m="360">6 h</button>
+          <button class="h-btn" data-mode="quick" data-m="1440">24 h</button>
+          <button class="h-btn" data-mode="quick" data-m="10080">7 j</button>
+          <button class="h-btn" data-mode="quick" data-m="43200">30 j</button>
+          <button class="h-btn" data-mode="quick" data-m="525600">1 an</button>
+        </div>
+        <div style="width:1px;height:30px;background:var(--bd2);align-self:center"></div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:10px;letter-spacing:2px;color:var(--tx3);margin-right:2px">ABSOLU</span>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:9px;color:var(--tx3);letter-spacing:1px">DU</span>
+            <input type="datetime-local" class="h-select" id="hist-from" style="font-size:11px;padding:5px 8px;width:175px"/>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:9px;color:var(--tx3);letter-spacing:1px">AU</span>
+            <input type="datetime-local" class="h-select" id="hist-to" style="font-size:11px;padding:5px 8px;width:175px"/>
+          </div>
+          <button class="h-btn" id="hist-apply-abs" style="align-self:flex-end;background:rgba(0,212,255,.12);border-color:rgba(0,212,255,.3);color:var(--c1)">Appliquer</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+          <button class="h-refresh" id="hist-refresh">↻ Actualiser</button>
+          <a href="https://sousscamp.duckdns.org/debug" target="_blank" style="padding:7px 10px;border-radius:6px;border:1px solid var(--bd2);font-family:var(--mono);font-size:10px;color:var(--tx3);text-decoration:none" title="Diagnostic InfluxDB">🔍</a>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--tx2)" id="hist-info">0 points</span>
+        </div>
+      </div>
+      <div class="card" style="overflow:visible">
+        <div class="cht-t" id="hist-label">PUISSANCE ACTIVE (kW)</div>
+        <div style="position:relative;height:400px;width:100%"><canvas id="ch-hist"></canvas></div>
+      </div>
+      <div class="card" style="overflow-x:auto">
+        <div class="cht-t">DERNIÈRES VALEURS</div>
+        <table>
+          <thead><tr>
+            <th>#</th><th>HEURE</th><th>VALEUR</th><th>CAPTEUR</th><th>STATUT</th>
+          </tr></thead>
+          <tbody id="hist-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PAGE : ALARMES -->
+    <div class="page" id="page-alarmes">
+      <div><div class="ptitle">État des Alarmes</div><div class="psub">SUPERVISION TEMPS RÉEL — TOUS CAPTEURS ET DISPOSITIFS</div></div>
+
+      <!-- KPI alarmes -->
+      <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
+        <div class="kpi" id="alm-kpi-any"><div class="kpi-v" id="alm-kv-any" style="color:var(--c2)">✓ OK</div><div class="kpi-l">STATUT GLOBAL</div></div>
+        <div class="kpi"><div class="kpi-v" id="alm-kv-energy" style="color:var(--c2)">✓</div><div class="kpi-l">ÉNERGIE PM5100</div></div>
+        <div class="kpi"><div class="kpi-v" id="alm-kv-elec" style="color:var(--c2)">✓</div><div class="kpi-l">I / FP / FRÉQ</div></div>
+        <div class="kpi"><div class="kpi-v" id="alm-kv-process" style="color:var(--c2)">✓</div><div class="kpi-l">PROCESS E+H</div></div>
+        <div class="kpi"><div class="kpi-v" id="alm-kv-env" style="color:var(--c2)">✓</div><div class="kpi-l">ENVIRONNEMENT</div></div>
+      </div>
+
+      <div class="sh"><div class="sl" style="background:var(--c4);box-shadow:0 0 7px var(--c4)"></div><div class="sh-t">ÉTAT DÉTAILLÉ DES ALARMES</div></div>
+      <div class="card ca-red" id="alarms-card" style="overflow:visible">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px" id="ag-main"></div>
+      </div>
+
+      <div class="sh"><div class="sl" style="background:var(--c4)"></div><div class="sh-t">JOURNAL DES ÉVÉNEMENTS</div></div>
+      <div class="card" style="padding:0;overflow:hidden;display:flex;flex-direction:column">
+        <!-- Header fixe -->
+        <div style="padding:0 17px;background:var(--bg3);border-bottom:1px solid var(--bd2);flex-shrink:0">
+          <table style="width:100%;border-collapse:collapse">
+            <colgroup>
+              <col style="width:130px"><col style="width:150px"><col><col style="width:80px"><col style="width:120px">
+            </colgroup>
+            <thead><tr>
+              <th style="padding:10px 13px">HEURE</th>
+              <th style="padding:10px 13px">DISPOSITIF</th>
+              <th style="padding:10px 13px">ALARME</th>
+              <th style="padding:10px 13px">VALEUR</th>
+              <th style="padding:10px 13px">STATUT</th>
+            </tr></thead>
+          </table>
+        </div>
+        <!-- Corps scrollable — hauteur fixe 280px -->
+        <div style="max-height:280px;overflow-y:auto;overflow-x:hidden;flex:1">
+          <table style="width:100%;border-collapse:collapse">
+            <colgroup>
+              <col style="width:130px"><col style="width:150px"><col><col style="width:80px"><col style="width:120px">
+            </colgroup>
+            <tbody id="alarm-log"></tbody>
+          </table>
+          <div id="alarm-log-empty" style="padding:24px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--tx3)">
+            Aucun événement — système nominal ✓
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.body -->
+</div><!-- /#app -->
+
+<script>
+const API='https://sousscamp.duckdns.org';
+const REFRESH=5000;
+const MAX_PTS=40;
+const USERS={SoussCamp:'SoussCamp123'};
+const ROLES={SoussCamp:'admin'};
+
+let session=null,hist=[],histChart=null,loopId=null,progId=null;
+let histMins=15,histAbsFrom=null,histAbsTo=null,histMode='quick';
+
+const f=(v,d=2)=>v==null?'--':(+v).toFixed(d);
+const pct=(v,mn,mx)=>Math.min(100,Math.max(0,((v-mn)/(mx-mn))*100));
+
+function metricCard(label,val,unit,min,max,dec,col,sub,alarm){
+  const p=pct(val??0,min,max);
+  const gMap={cyan:'linear-gradient(90deg,#0099bb,#00d4ff)',green:'linear-gradient(90deg,#00cc66,#00ff88)',orange:'linear-gradient(90deg,#cc7700,#ff9500)',purple:'linear-gradient(90deg,#7c3aed,#a78bfa)'};
+  const g=alarm?'linear-gradient(90deg,#cc1133,#ff2d55)':gMap[col]||gMap.cyan;
+  const textCol=alarm?'var(--c4)':{cyan:'var(--c1)',green:'var(--c2)',orange:'var(--c3)',purple:'var(--c5)'}[col]||'var(--c1)';
+  return`<div class="card${alarm?' alarm':''}"><div class="mc-l">${label}</div><div class="mc-v" style="color:${textCol}">${f(val,dec)}<span class="mc-u">${unit}</span></div>${sub?`<div class="mc-s">${sub}</div>`:''}<div class="gbar"><div class="gtr"><div class="gf" style="width:${p}%;background:${g}"></div></div></div></div>`;
+}
+
+function gaugeSVG(val,min,max,unit,col,label){
+  const r=42,cx=60,cy=60,sweep=240;
+  const ratio=Math.min(1,Math.max(0,((val??0)-min)/(max-min)));
+  const p2c=(d,r)=>({x:cx+r*Math.cos((d-90)*Math.PI/180),y:cy+r*Math.sin((d-90)*Math.PI/180)});
+  const s=-120,sv=s+ratio*sweep;
+  const a=p2c(s,r),b=p2c(s+sweep,r),fe=p2c(sv,r);
+  const lg=ratio*sweep;
+  return`<div class="gc"><svg width="120" height="120" viewBox="0 0 120 120" style="overflow:visible"><path d="M${a.x} ${a.y} A${r} ${r} 0 1 1 ${b.x} ${b.y}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="6" stroke-linecap="round"/>${val!=null&&lg>0?`<path d="M${a.x} ${a.y} A${r} ${r} 0 ${lg>180?1:0} 1 ${fe.x} ${fe.y}" fill="none" stroke="${col}" stroke-width="6" stroke-linecap="round"/>`:''}<text x="60" y="56" text-anchor="middle" font-family="var(--mono)" font-size="17" fill="${col}">${val==null?'--':(+val).toFixed(val>99?0:2)}</text><text x="60" y="73" text-anchor="middle" font-family="var(--ui)" font-size="10" fill="rgba(255,255,255,.3)" letter-spacing="1">${unit}</text></svg><div class="gc-l">${label}</div></div>`;
+}
+
+function alarmGrid(d){
+  const items=[
+    {name:'PM5100 — Surtension/Surcharge', key:'alarm_pm',          sub:'Tension hors plage 200-240V ou Puissance > 40 kW',  icon:'⚡'},
+    {name:'Surintensité',                  key:'alarm_overcurrent',  sub:'Courant > 80 A — PM5100 BUS RS485 #1',             icon:'⚡'},
+    {name:'Facteur de Puissance',          key:'alarm_low_pf',       sub:'FP < 0.8 — Risque déséquilibre réseau',            icon:'⚡'},
+    {name:'Fréquence Réseau',              key:'alarm_frequency',    sub:'Fréquence hors plage 49–51 Hz',                    icon:'〰'},
+    {name:'PMP51 Cerabar',                 key:'alarm_pmp51',        sub:'Capteur pression E+H — BUS RS485 #2',              icon:'💧'},
+    {name:'Prowirl 200',                   key:'alarm_prowirl',      sub:'Débitmètre air DN200 E+H — BUS RS485 #2',          icon:'💨'},
+    {name:'DS18B20',                       key:'alarm_temp',         sub:'Sonde température — GPIO3',                        icon:'🌡'},
+    {name:'ZENNER Débit Gaz',              key:'alarm_gas_debit',    sub:'Débit gaz > 5.0 m³/h',                             icon:'🔥'},
+    {name:'ZENNER Index Gaz',               key:'alarm_gas_total',    sub:'Index cumulé > 2000 m³',                           icon:'📦'},
+    {name:'YF-S201',                       key:'alarm_flow',         sub:'Débitmètre eau — GPIO7',                           icon:'💧'},
+    {name:'RS485 Bus',                     key:'alarm_comm',         sub:'Communication Modbus — UART1/UART2',               icon:'📡'},
+    {name:'Système Global',                key:'any_alarm',          sub:'Supervision générale UNIFIED_01',                  icon:'🖥'},
+  ];
+  return items.map(a=>{
+    const on=d[a.key]===1;
+    return `<div class="ai ${on?'on':'ok'}" style="padding:14px 16px">
+      <div style="font-size:20px;margin-right:4px">${a.icon}</div>
+      <div class="ai-d"></div>
+      <div style="flex:1;min-width:0;margin-left:4px">
+        <div class="ai-n" style="font-size:13px">${a.name}</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.28);margin-top:3px;letter-spacing:.5px">${a.sub}</div>
+      </div>
+      <div class="ai-s" style="font-size:11px;font-weight:700">${on?'⚠ ACTIF':'✓ OK'}</div>
+    </div>`;
+  }).join('');
+}
+
+const CH_OPT={responsive:true,maintainAspectRatio:false,animation:{duration:300},plugins:{legend:{display:false},tooltip:{backgroundColor:'#0c1822',titleColor:'rgba(255,255,255,.45)',bodyColor:'#fff',borderColor:'rgba(255,255,255,.1)',borderWidth:1,titleFont:{family:'JetBrains Mono,monospace',size:10},bodyFont:{family:'JetBrains Mono,monospace',size:11}}},scales:{x:{grid:{color:'rgba(255,255,255,.04)',drawTicks:false},ticks:{color:'rgba(255,255,255,.28)',font:{family:'JetBrains Mono,monospace',size:9},maxTicksLimit:7}},y:{grid:{color:'rgba(255,255,255,.04)',drawTicks:false},ticks:{color:'rgba(255,255,255,.28)',font:{family:'JetBrains Mono,monospace',size:9},maxTicksLimit:5}}}};
+const charts={};
+
+function mkChart(id,col,ref){
+  const el=document.getElementById(id);if(!el||charts[id])return;
+  const ds={data:[],borderColor:col,backgroundColor:col+'1a',borderWidth:2,fill:true,tension:.4,pointRadius:0,pointHoverRadius:4};
+  const opt=JSON.parse(JSON.stringify(CH_OPT));
+  if(ref!==undefined){opt.plugins.annotation={annotations:{ref:{type:'line',yMin:ref,yMax:ref,borderColor:'rgba(255,45,85,.5)',borderWidth:1,borderDash:[4,4]}}};}
+  charts[id]=new Chart(el,{type:'line',data:{labels:[],datasets:[ds]},options:opt});
+}
+
+function pushChart(id,label,val){
+  const c=charts[id];if(!c||val==null)return;
+  c.data.labels.push(label);c.data.datasets[0].data.push(parseFloat((+val).toFixed(3)));
+  if(c.data.labels.length>MAX_PTS){c.data.labels.shift();c.data.datasets[0].data.shift();}
+  c.update('none');
+}
+
+function initCharts(){
+  mkChart('ch-pwr','#ff9500',40);mkChart('ch-v','#00d4ff');mkChart('ch-t','#00ff88');mkChart('ch-fl','#ff9500');
+  mkChart('ch-pwr2','#ff9500',40);mkChart('ch-v2','#00d4ff');mkChart('ch-curr','#a78bfa');mkChart('ch-fp','#00ff88');
+  mkChart('ch-pr','#00ff88',5.5);mkChart('ch-da','#00d4ff',2880);mkChart('ch-te','#00ff88');mkChart('ch-ga','#00d4ff',70);mkChart('ch-fw','#ff9500');
+}
+
+function updateUI(d){
+  const t=d.t;
+  const anyAlarm=d.any_alarm===1;
+  const hasData=(d.voltage_v??0)>1.0 || (d.power_kw??0)>0 || (d.pression_bar??0)>0;
+  document.getElementById('kpi-pwr').textContent=f(d.power_kw,1);
+  document.getElementById('kpi-v').textContent=f(d.voltage_v,0);
+  document.getElementById('kpi-t').textContent=f(d.temp_c,1);
+  document.getElementById('kpi-p').textContent=f(d.pression_bar,2);
+  const ka=document.getElementById('kpi-alv');
+  ka.textContent=anyAlarm?'⚠ ACTIF':'✓ OK';ka.style.color=anyAlarm?'var(--c4)':'var(--c2)';
+  document.getElementById('alarm-badge').style.display=anyAlarm?'block':'none';
+  document.getElementById('alarm-sb').style.display=anyAlarm?'inline':'none';
+  document.getElementById('alarms-card').className='card ca-red'+(anyAlarm?' alarm':'');
+
+  // Update alarmes page KPIs
+  const akvAny=document.getElementById('alm-kv-any');
+  const akvE=document.getElementById('alm-kv-energy');
+  const akvP=document.getElementById('alm-kv-process');
+  const akvEv=document.getElementById('alm-kv-env');
+  if(akvAny){
+    akvAny.textContent=anyAlarm?'⚠ ALARME':'✓ OK';
+    akvAny.style.color=anyAlarm?'var(--c4)':'var(--c2)';
+    document.getElementById('alm-kpi-any').style.borderColor=anyAlarm?'rgba(255,45,85,.4)':'';
+  }
+  const energyAlm=d.alarm_pm===1||d.alarm_overcurrent===1||d.alarm_low_pf===1||d.alarm_frequency===1;
+  const elecAlm=d.alarm_overcurrent===1||d.alarm_low_pf===1||d.alarm_frequency===1;
+  const processAlm=d.alarm_pmp51===1||d.alarm_prowirl===1;
+  const envAlm=d.alarm_temp===1||d.alarm_gas===1||d.alarm_flow===1;
+  if(akvE){akvE.textContent=energyAlm?'⚠ ALARME':'✓ OK';akvE.style.color=energyAlm?'var(--c4)':'var(--c2)';}
+  const akvElec=document.getElementById('alm-kv-elec');
+  if(akvElec){akvElec.textContent=elecAlm?'⚠ ALARME':'✓ OK';akvElec.style.color=elecAlm?'var(--c4)':'var(--c2)';}
+  if(akvP){akvP.textContent=processAlm?'⚠ ALARME':'✓ OK';akvP.style.color=processAlm?'var(--c4)':'var(--c2)';}
+  if(akvEv){akvEv.textContent=envAlm?'⚠ ALARME':'✓ OK';akvEv.style.color=envAlm?'var(--c4)':'var(--c2)';}
+
+  // Journal alarmes - ajouter une ligne par alarme active
+  const log=document.getElementById('alarm-log');
+  const emptyMsg=document.getElementById('alarm-log-empty');
+  if(log){
+    if(anyAlarm){
+      // Une ligne par alarme active (pas une ligne groupée)
+      const alarmItems=[
+        {key:'alarm_pm',           v:d.alarm_pm,           name:'PM5100 (Surtension/Surcharge)'},
+        {key:'alarm_overcurrent',  v:d.alarm_overcurrent,  name:'Surintensité (I > 80A)'},
+        {key:'alarm_low_pf',       v:d.alarm_low_pf,       name:'Facteur de Puissance faible (FP < 0.8)'},
+        {key:'alarm_frequency',    v:d.alarm_frequency,    name:'Fréquence anormale (hors 49-51Hz)'},
+        {key:'alarm_pmp51',        v:d.alarm_pmp51,        name:'PMP51 (Pression)'},
+        {key:'alarm_prowirl',      v:d.alarm_prowirl,      name:'Prowirl (Débit air)'},
+        {key:'alarm_temp',         v:d.alarm_temp,         name:'DS18B20 (Temp)'},
+        {key:'alarm_gas_debit',    v:d.alarm_gas_debit,    name:'ZENNER Débit Gaz'},
+        {key:'alarm_gas_total',    v:d.alarm_gas_total,    name:'ZENNER Index Gaz'},
+        {key:'alarm_flow',         v:d.alarm_flow,         name:'YF-S201 (Débit eau)'},
+        {key:'alarm_comm',         v:d.alarm_comm,         name:'RS485 (Comm)'},
+      ].filter(a=>a.v===1);
+      alarmItems.forEach(a=>{
+        const row=document.createElement('tr');
+        row.innerHTML=`<td style="color:var(--tx2);white-space:nowrap">${t}</td><td style="color:var(--c1)">UNIFIED_01</td><td style="color:var(--c4)">${a.name}</td><td style="color:var(--tx2)">--</td><td><span style="background:rgba(255,45,85,.1);border:1px solid rgba(255,45,85,.3);border-radius:8px;padding:2px 8px;font-size:10px;color:var(--c4);white-space:nowrap">⚠ ACTIF</span></td>`;
+        log.insertBefore(row, log.firstChild);
+      });
+      if(log.children.length>100)log.removeChild(log.lastChild);
+      if(emptyMsg)emptyMsg.style.display='none';
+    } else {
+      if(emptyMsg && log.children.length===0)emptyMsg.style.display='block';
+    }
+  }
+  [['ch-pwr',d.power_kw],['ch-v',d.voltage_v],['ch-t',d.temp_c],['ch-fl',d.flow_lpm],
+   ['ch-pwr2',d.power_kw],['ch-v2',d.voltage_v],['ch-curr',d.current_a],['ch-fp',d.power_factor],
+   ['ch-pr',d.pression_bar],['ch-da',d.debit_m3h],['ch-te',d.temp_c],['ch-ga',d.gas_flow_m3h],['ch-fw',d.flow_lpm]
+  ].forEach(([id,v])=>pushChart(id,t,v));
+  document.getElementById('ag-main').innerHTML=alarmGrid(d);
+  document.getElementById('energy-metrics').innerHTML=[
+    metricCard('TENSION',d.voltage_v,'V',180,260,1,'cyan','Nominal: 220V',
+      (d.voltage_v < 200 || d.voltage_v > 240)),
+    metricCard('COURANT',d.current_a,'A',0,100,1,'cyan','Alarme: > 80 A',
+      d.alarm_overcurrent===1),
+    metricCard('PUISSANCE ACTIVE',d.power_kw,'kW',0,50,2,'orange','Alarme: > 40 kW',
+      d.alarm_pm===1),
+    metricCard('ÉNERGIE CUMULÉE',(d.energy_kwh??0),'Wh',0,100000,0,'green','Total consommé (Wh)',false),
+    metricCard('FACTEUR PUISSANCE',d.power_factor,'',0,1,3,'cyan','Alarme: FP < 0.8',
+      d.alarm_low_pf===1),
+    metricCard('FRÉQUENCE',d.frequency_hz,'Hz',49,51,2,'cyan','Nominal: 50 Hz — Alarme: <49 ou >51',
+      d.alarm_frequency===1),
+    metricCard('COÛT CUMULÉ',d.cost_dh,'DH',0,5000,2,'orange','Tarif: 0.50 DH/Wh',false),
+    `<div class="card"><div class="mc-l">DISPOSITIF</div><div style="font-family:var(--mono);font-size:14px;color:var(--c1);margin-top:6px">UNIFIED_01</div><div class="mc-s">ESP32-S3 · RS485 Bus1</div></div>`,
+  ].join('');
+  const pc=d.pression_bar>5.5?'var(--c4)':d.pression_bar<0.5?'var(--c3)':'var(--c2)';
+  const qc=d.debit_m3h>2880?'var(--c4)':d.debit_m3h<160?'var(--c3)':'var(--c1)';
+  document.getElementById('pr-pression').innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div style="flex:1"><div class="mc-l">PRESSION EAU — PMP51 CERABAR</div><div class="mc-v" style="color:${pc};font-size:34px">${f(d.pression_bar,2)}<span class="mc-u">bar</span></div><div class="mc-s">Seuils alarme: 0.5 — 5.5 bar · Addr Modbus: 1</div><div class="gbar" style="margin-top:14px"><div class="gtr" style="height:5px"><div class="gf" style="width:${pct(d.pression_bar??0,0,10)}%;background:${pc}"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--tx3);margin-top:3px"><span>0</span><span>5</span><span>10 bar</span></div></div></div>${gaugeSVG(d.pression_bar,0,10,'bar',pc,'PMP51')}</div>`;
+  document.getElementById('pr-debit').innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div style="flex:1"><div class="mc-l">DÉBIT AIR — PROWIRL 200 DN200</div><div class="mc-v" style="color:${qc};font-size:34px">${f(d.debit_m3h,0)}<span class="mc-u">m³/h</span></div><div class="mc-s">Qmin: 160 — Qmax: 2880 m³/h · Addr Modbus: 2</div><div class="gbar" style="margin-top:14px"><div class="gtr" style="height:5px"><div class="gf" style="width:${pct(d.debit_m3h??0,0,3200)}%;background:${qc}"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--tx3);margin-top:3px"><span>0</span><span>1600</span><span>3200 m³/h</span></div></div></div>${gaugeSVG(d.debit_m3h,0,3200,'m³/h',qc,'Prowirl')}</div>`;
+  document.getElementById('env-metrics').innerHTML=[
+    metricCard('TEMPÉRATURE',d.temp_c,'°C',-10,70,1,'green','DS18B20 · GPIO3 · pull-up 4.7kΩ',d.temp_c>50||d.temp_c<0),
+    metricCard('DÉBIT GAZ',d.gas_flow_m3h,'m³/h',0,6,2,'cyan','ZENNER G4-G25 · Seuil alarm: 5.0 m³/h',d.alarm_gas_debit),
+            metricCard('INDEX GAZ',d.gas_index_m3,'m³',0,2000,1,'orange','ZENNER · Index cumulé · Seuil: 2000 m³',d.alarm_gas_total),
+    metricCard('DÉBIT EAU',d.flow_lpm,'L/min',0,30,2,'orange','YF-S201 · GPIO7 · 7.5 pulse/L',d.flow_lpm>25),
+    metricCard('VOLUME CUMULÉ',d.volume_l,'L',0,5000,1,'green','Total eau consommée',false),
+  ].join('');
+  document.getElementById('sb-pts').textContent=hist.length+' points';
+  document.getElementById('sb-last').textContent='Mis à jour: '+t;
+}
+
+async function fetchLatest(){
+  try{
+    const r=await fetch(API+'/latest',{signal:AbortSignal.timeout(8000)});
+    if(!r.ok){
+      const errBody=await r.text().catch(()=>'');
+      console.error('[Latest] HTTP',r.status,errBody.substring(0,200));
+      throw new Error('HTTP '+r.status+' — '+errBody.substring(0,100));
+    }
+    const j=await r.json();
+    const flat={...j.data?.energy_meter||{},...j.data?.process||{},...j.data?.environment||{},...j.data?.alarms||{},t:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})};
+    hist.push(flat);if(hist.length>60)hist.shift();
+    updateUI(flat);setConn('ok','CONNECTÉ');return flat;
+  }catch(e){
+    setConn('err','HORS LIGNE');
+    console.error('[API /latest]',e.message);
+    return null;
+  }
+}
+
+function setConn(state,label){
+  document.getElementById('conn').className='conn-badge '+state;
+  document.getElementById('conn-t').textContent=label;
+}
+
+const HIST_FIELDS={power_kw:{l:'PUISSANCE ACTIVE (kW)',col:'#ff9500'},voltage_v:{l:'TENSION (V)',col:'#00d4ff'},current_a:{l:'COURANT (A)',col:'#a78bfa'},energy_kwh:{l:'ÉNERGIE CUMULÉE (kWh)',col:'#00ff88'},power_factor:{l:'FACTEUR DE PUISSANCE',col:'#00d4ff'},frequency_hz:{l:'FRÉQUENCE RÉSEAU (Hz)',col:'#00ff88'},cost_dh:{l:'COÛT CUMULÉ (DH)',col:'#ff9500'},pression_bar:{l:'PRESSION EAU (bar)',col:'#00ff88'},debit_m3h:{l:'DÉBIT AIR (m³/h)',col:'#00d4ff'},temp_c:{l:'TEMPÉRATURE (°C)',col:'#00ff88'},gas_flow_m3h:{l:'DÉBIT GAZ ZENNER (m³/h)',col:'#00d4ff'},gas_index_m3:{l:'INDEX GAZ ZENNER (m³)',col:'#ff9500'},flow_lpm:{l:'DÉBIT EAU (L/min)',col:'#ff9500'},volume_l:{l:'VOLUME CUMULÉ (L)',col:'#00ff88'}};
+
+async function loadHistory(){
+  const field=document.getElementById('hist-field').value;
+  const info=HIST_FIELDS[field]||{l:field,col:'#00d4ff'};
+  document.getElementById('hist-label').textContent=info.l;
+  document.getElementById('hist-info').textContent='Chargement...';
+  let pts=[];
+  let fetchError=null;
+  try{
+    let url;
+    if(histMode==='abs'&&histAbsFrom&&histAbsTo){
+      const startISO=histAbsFrom.toISOString();
+      const stopISO=histAbsTo.toISOString();
+      url=`${API}/history?field=${field}&start=${encodeURIComponent(startISO)}&stop=${encodeURIComponent(stopISO)}`;
+    } else {
+      url=`${API}/history?field=${field}&minutes=${histMins}`;
+    }
+    console.log('[History] Fetching:', url);
+    const r=await fetch(url,{signal:AbortSignal.timeout(10000)});
+    if(r.ok){
+      const j=await r.json();
+      pts=j.data||[];
+      console.log('[History] Got', pts.length, 'points');
+    } else {
+      const errText=await r.text();
+      fetchError=`Erreur serveur ${r.status}: ${errText.substring(0,200)}`;
+      console.error('[History] Server error:', fetchError);
+    }
+  }catch(e){
+    fetchError=`Connexion échouée: ${e.message}`;
+    console.error('[History] Fetch error:', e);
+  }
+  // Fallback sur données locales si API échoue
+  if(pts.length===0&&hist.length>0){
+    pts=hist.filter(d=>d[field]!=null).map(d=>({time:d.t,value:d[field]}));
+    if(pts.length>0)fetchError=null; // données locales disponibles
+  }
+  // Afficher l'erreur si pas de données
+  if(fetchError){
+    document.getElementById('hist-info').textContent='⚠ '+fetchError;
+    document.getElementById('hist-info').style.color='var(--c4)';
+  } else {
+    document.getElementById('hist-info').style.color='var(--tx2)';
+  }
+  const fmtDT=d=>d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  const rangeLabel=histMode==='abs'&&histAbsFrom&&histAbsTo
+    ?`${fmtDT(histAbsFrom)} → ${fmtDT(histAbsTo)}`
+    :(histMins>=1440?(histMins/1440)+' j':histMins>=60?(histMins/60)+' h':histMins+' min');
+  document.getElementById('hist-info').textContent=pts.length+' points · '+rangeLabel;
+  if(histChart){histChart.destroy();histChart=null;}
+  const el=document.getElementById('ch-hist');
+  if(el&&pts.length>0){
+    // Force le canvas à la bonne taille avant création du graphe
+    el.style.width='100%';
+    el.style.height='400px';
+    el.parentElement.style.height='400px';
+    histChart=new Chart(el,{
+      type:'line',
+      data:{
+        labels:pts.map(p=>p.time||p.t),
+        datasets:[{
+          data:pts.map(p=>parseFloat((+(p.value??p[field])).toFixed(3))),
+          borderColor:info.col,
+          backgroundColor:info.col+'18',
+          borderWidth:2,
+          fill:true,
+          tension:.4,
+          pointRadius:pts.length<30?3:0,
+          pointHoverRadius:5
+        }]
+      },
+      options:{
+        ...JSON.parse(JSON.stringify(CH_OPT)),
+        responsive:true,
+        maintainAspectRatio:false,
+        animation:{duration:0},
+        layout:{padding:{top:10,bottom:10,left:5,right:5}}
+      }
+    });
+    // Forcer le redimensionnement après rendu
+    setTimeout(()=>{if(histChart)histChart.resize();},100);
+  }
+  document.getElementById('hist-tbody').innerHTML=[...pts].reverse().slice(0,20).map((p,i)=>{
+    const v=+(p.value??p[field]??0);
+    return`<tr><td style="color:var(--tx3)">${pts.length-i}</td><td>${p.time||p.t||'--'}</td><td style="color:${info.col};font-weight:500">${v.toFixed(3)}</td><td style="color:var(--tx2)">${field.split('_')[0].toUpperCase()}</td><td><span style="background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.2);border-radius:8px;padding:2px 8px;font-size:10px;color:var(--c2)">NORMAL</span></td></tr>`;
+  }).join('');
+}
+
+const PAGES=['overview','energy','process','env','history','alarmes'];
+function goto(p){
+  PAGES.forEach(id=>{const el=document.getElementById('page-'+id);if(el)el.className='page'+(id===p?' active':'');});
+  document.querySelectorAll('.nb').forEach(b=>b.classList.toggle('act',b.dataset.page===p));
+  document.querySelectorAll('.sb').forEach(b=>b.classList.toggle('act',b.dataset.page===p));
+  if(p==='history')loadHistory();
+}
+
+function doLogin(){
+  const u=document.getElementById('lu').value.trim();
+  const p=document.getElementById('lp').value;
+  const err=document.getElementById('lerr');
+  if(!u||!p){err.textContent='⚠ Remplissez tous les champs';err.style.display='block';return}
+  if(!USERS[u]||USERS[u]!==p){err.textContent='⚠ Identifiants incorrects';err.style.display='block';return}
+  err.style.display='none';
+  session={username:u,role:ROLES[u]};
+  document.getElementById('login').style.display='none';
+  const app=document.getElementById('app');
+  app.style.display='flex';
+  app.style.flexDirection='column';
+  document.getElementById('tb-av').textContent=u[0].toUpperCase();
+  document.getElementById('tb-uname').textContent=u;
+  document.getElementById('tb-role').textContent=session.role;
+  initCharts();startApp();
+}
+
+function logout(){
+  clearInterval(loopId);clearInterval(progId);session=null;hist=[];
+  Object.values(charts).forEach(c=>{try{c.destroy()}catch{}});Object.keys(charts).forEach(k=>delete charts[k]);
+  if(histChart){histChart.destroy();histChart=null;}
+  document.getElementById('login').style.display='flex';
+  document.getElementById('app').style.display='none';
+  document.getElementById('lu').value='';document.getElementById('lp').value='';
+}
+
+function startApp(){
+  let elapsed=0;
+  progId=setInterval(()=>{elapsed+=100;const p=Math.min(100,(elapsed/REFRESH)*100);document.getElementById('prog').style.width=p+'%';if(elapsed>=REFRESH)elapsed=0;},100);
+  fetchLatest();
+  loopId=setInterval(()=>{fetchLatest();const hp=document.getElementById('page-history');if(hp&&hp.classList.contains('active'))loadHistory();},REFRESH);
+}
+
+setInterval(()=>{document.getElementById('tb-clock').textContent=new Date().toLocaleTimeString('fr-FR');},1000);
+
+document.getElementById('lbtn').addEventListener('click',doLogin);
+document.getElementById('lp').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+document.getElementById('lu').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('lp').focus()});
+document.getElementById('lout-btn').addEventListener('click',logout);
+document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('.nb');if(b&&b.dataset.page)goto(b.dataset.page);});
+document.getElementById('sb-nav').addEventListener('click',e=>{const b=e.target.closest('.sb');if(b&&b.dataset.page)goto(b.dataset.page);});
+document.getElementById('hist-field').addEventListener('change',loadHistory);
+document.getElementById('hist-refresh').addEventListener('click',loadHistory);
+document.querySelectorAll('.h-btn[data-mode="quick"]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.h-btn[data-mode="quick"]').forEach(x=>x.classList.remove('act'));
+    b.classList.add('act');histMins=+b.dataset.m;histMode='quick';loadHistory();
+  });
+});
+(function(){
+  const now=new Date(),from=new Date(now.getTime()-3600000);
+  const pad=n=>String(n).padStart(2,'0');
+  const fmt=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  document.getElementById('hist-from').value=fmt(from);
+  document.getElementById('hist-to').value=fmt(now);
+})();
+document.getElementById('hist-apply-abs').addEventListener('click',()=>{
+  const fv=document.getElementById('hist-from').value,tv=document.getElementById('hist-to').value;
+  if(!fv||!tv){alert('Veuillez remplir les deux dates');return;}
+  histAbsFrom=new Date(fv);histAbsTo=new Date(tv);
+  if(histAbsFrom>=histAbsTo){alert('La date de début doit être avant la date de fin');return;}
+  histMode='abs';document.querySelectorAll('.h-btn[data-mode="quick"]').forEach(x=>x.classList.remove('act'));loadHistory();
+});
+</script>
+</body>
+</html>
