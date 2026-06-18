@@ -1,7 +1,7 @@
 # Système de Supervision Énergétique Industrielle — SoussCamp
 # Industrial Energy Supervision System — SoussCamp
 
-🎓 Projet de Fin d'Études — Licence en Génie Électrique / Systèmes Embarqués
+🎓 Projet de Fin d'Études — Master d'Excellence en « Ingénierie Informatique et Système Embarqué »
 
 Ce projet est le PFE réalisé au Centre d'excellence IT, Faculté des Sciences, Agadir, en collaboration avec l'entreprise **SOUSSCAMP** et le laboratoire **LASIME**. Il présente la conception et le déploiement d'un système intelligent de supervision énergétique basé sur les technologies IIoT.
 
