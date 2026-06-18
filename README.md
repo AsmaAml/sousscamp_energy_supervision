@@ -80,7 +80,7 @@ sousscamp_energy_supervision/
 
 ### Installation Backend
 ```bash
-git clone https://github.com/[ton_username]/sousscamp_energy_supervision.git
+git clone https://github.com/AsmaAml/sousscamp_energy_supervision.git
 cd sousscamp_energy_supervision
 pip install -r requirements.txt
 uvicorn energy_api.main:app --reload
