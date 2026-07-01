@@ -394,6 +394,139 @@ void sensors_read(void) {
 }
 
 // ════════════════════════════════════════════════════════════════
+//  PROTOCOLES ALTERNATIFS — BLOCS COMMENTÉS
+//  Pour intégrer un nouvel instrument, décommenter le bloc
+//  correspondant et adapter les paramètres spécifiques
+// ════════════════════════════════════════════════════════════════
+
+// ----------------------------------------------------------------
+//  PROTOCOLE : 4-20 mA (courant analogique)
+//  Instruments compatibles : capteurs de pression, débit, niveau
+//  Utilisation : lire la valeur via ADC (Analog-to-Digital Converter)
+//  Exemple : Endress+Hauser PMP51 en version 4-20 mA
+// ----------------------------------------------------------------
+/*
+#define ANALOG_PIN        34        // GPIO ADC — a adapter selon cablage
+#define ANALOG_MIN_MA     4.0f      // 4 mA  = valeur physique minimale
+#define ANALOG_MAX_MA     20.0f     // 20 mA = valeur physique maximale
+#define PHYS_MIN          0.0f      // Valeur physique min (ex: 0 bar)
+#define PHYS_MAX          10.0f     // Valeur physique max (ex: 10 bar)
+
+float read_4_20mA(void) {
+    int raw = analogRead(ANALOG_PIN);
+    float voltage = raw * 3.3f / 4095.0f;
+    float current_ma = (voltage / 250.0f) * 1000.0f;
+    float val = PHYS_MIN + (current_ma - ANALOG_MIN_MA)
+                * (PHYS_MAX - PHYS_MIN) / (ANALOG_MAX_MA - ANALOG_MIN_MA);
+    return constrain(val, PHYS_MIN, PHYS_MAX);
+}
+*/
+
+// ----------------------------------------------------------------
+//  PROTOCOLE : HART (Highway Addressable Remote Transducer)
+//  Instruments compatibles : Endress+Hauser PMP51, Prowirl 200
+//  Utilisation : communication numerique superposee sur 4-20 mA
+//  Necessite : module HART Modem (ex: HCF_DC-01)
+// ----------------------------------------------------------------
+/*
+#define HART_BAUD         1200
+#define HART_ADDR         0
+#define HART_CMD_READ     3
+
+void hart_send_command(uint8_t cmd) {
+    uint8_t frame[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                       0x02, HART_ADDR, cmd, 0x00, 0x00};
+    uint8_t crc = 0;
+    for (int i = 5; i < 9; i++) crc ^= frame[i];
+    frame[9] = crc;
+    Serial1.write(frame, sizeof(frame));
+}
+
+float hart_read_primary_value(void) {
+    hart_send_command(HART_CMD_READ);
+    delay(300);
+    uint8_t resp[20]; uint8_t idx = 0;
+    uint32_t t = millis();
+    while (idx < 20 && (millis() - t) < 500)
+        if (Serial1.available()) resp[idx++] = Serial1.read();
+    if (idx < 14) return -1.0f;
+    return bytes_to_float(&resp[10]);
+}
+*/
+
+// ----------------------------------------------------------------
+//  PROTOCOLE : I2C (Inter-Integrated Circuit)
+//  Instruments compatibles : capteurs temperature, humidite, pression
+//  Exemple : BME280 (temperature + humidite + pression)
+//  Pins : SDA=GPIO15, SCL=GPIO16
+// ----------------------------------------------------------------
+/*
+#include <Adafruit_BME280.h>
+
+#define I2C_ADDR_BME280   0x76
+
+Adafruit_BME280 bme280;
+
+bool i2c_init_bme280(void) {
+    if (!bme280.begin(I2C_ADDR_BME280)) return false;
+    return true;
+}
+
+void i2c_read_bme280(float &temp, float &humidity, float &pressure) {
+    temp     = bme280.readTemperature();
+    humidity = bme280.readHumidity();
+    pressure = bme280.readPressure() / 100.0f;
+}
+*/
+
+// ----------------------------------------------------------------
+//  PROTOCOLE : SPI (Serial Peripheral Interface)
+//  Instruments compatibles : capteurs thermocouple, afficheurs
+//  Exemple : MAX31855 (thermocouple type K)
+//  Pins : MOSI=GPIO11, MISO=GPIO13, SCK=GPIO12, CS=GPIO10
+// ----------------------------------------------------------------
+/*
+#include <Adafruit_MAX31855.h>
+
+#define SPI_CS_PIN        10
+
+Adafruit_MAX31855 thermocouple(SPI_CS_PIN);
+
+float spi_read_thermocouple(void) {
+    float temp = thermocouple.readCelsius();
+    if (isnan(temp)) return -1.0f;
+    return temp;
+}
+*/
+
+// ----------------------------------------------------------------
+//  PROTOCOLE : Impulsions numeriques (Pulse Counter)
+//  Instruments compatibles : debitmètres a turbine, compteurs gaz/eau
+//  Meme principe ISR que YF-S201 — adapter le facteur de calibration
+// ----------------------------------------------------------------
+/*
+#define PULSE_PIN_ALT         35
+#define PULSE_FACTOR_ALT      7.5f  // Impulsions/litre — selon datasheet
+
+volatile uint32_t pulse_count_alt = 0;
+
+void IRAM_ATTR pulse_isr_alt(void) {
+    static uint32_t last_us = 0;
+    uint32_t now_us = micros();
+    if (now_us - last_us > 5000) {
+        pulse_count_alt++;
+        last_us = now_us;
+    }
+}
+
+float read_flow_alt_lpm(uint32_t interval_ms) {
+    uint32_t count = pulse_count_alt;
+    pulse_count_alt = 0;
+    return (count / PULSE_FACTOR_ALT) / (interval_ms / 60000.0f);
+}
+*/
+
+// ════════════════════════════════════════════════════════════════
 //  WIFI + FastAPI — envoi JSON unifié toutes 30 sec
 // ════════════════════════════════════════════════════════════════
 
